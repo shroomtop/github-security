@@ -1,0 +1,79 @@
+<!--LEGAL-DNA:{"jurisdiction":"US/MN/Baxter","export_tag":"EAR99","spdx":"MIT","artifact_time":1748752114110,"def_pub":"OIN","consent_req":true,"city":"Baxter"}-->
+# SHROOMTOP420™ GITHUB BULK SECURITY AUTO-UPGRADER: PASTE ALL, RUNS ITSELF
+
+WORKDIR=~/github-bulk-security-upgrader-$(date +%s)
+mkdir -p $WORKDIR && cd $WORKDIR
+
+cat > upgrade_github_sec.sh <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+# SHROOMTOP420™ GITHUB SECURITY BULK-UPGRADER v2.1 — Full Auto, PAT-Only
+
+set -e
+trap 'termux-clipboard-set < ~/github-secure-upgrade.log' ERR
+
+echo "=== SHROOMTOP420™ GITHUB SECURITY BULK-UPGRADER (PAT Only, Resilient) ==="
+read -p "GitHub Username: " GHUSER
+echo "🔑 Please enter your GitHub Personal Access Token (PAT)"
+echo "💡 Get one at: https://github.com/settings/tokens (Scopes: repo, admin:repo_hook, security_events, workflow)"
+while true; do
+  read -rsp "PAT: " GHPAT
+  echo
+  if [[ -z "$GHPAT" ]]; then
+    echo "⚠️  Token cannot be empty. Please try again."
+  elif [[ "$GHPAT" =~ ^gh[pu]_[A-Za-z0-9_]{36,}$ ]]; then
+    break
+  else
+    echo "⚠️  Invalid token format. Must start with ghp_ or github_pat_ and be ~40+ chars."
+  fi
+done
+
+API="https://api.github.com"
+LOG=~/github-secure-upgrade.log
+> $LOG
+
+# Fetch all repos (paginated, up to 10,000)
+page=1
+repos=()
+while :; do
+    RESP=$(curl -s -H "Authorization: token $GHPAT" "$API/user/repos?per_page=100&page=$page")
+    if echo "$RESP" | jq 'type' | grep -q '"object"'; then
+        echo "ERROR: $(echo "$RESP" | jq -r '.message')" | tee -a $LOG
+        termux-clipboard-set < $LOG
+        exit 1
+    fi
+    names=$(echo "$RESP" | jq -r '.[].full_name')
+    [ -z "$names" ] && break
+    repos+=($names)
+    [ $(echo "$RESP" | jq 'length') -lt 100 ] && break
+    ((page++))
+done
+
+if [ ${#repos[@]} -eq 0 ]; then
+    echo "No repositories found or authentication failed." | tee -a $LOG
+    termux-clipboard-set < $LOG
+    exit 1
+fi
+
+for repo in "${repos[@]}"; do
+  echo "Upgrading $repo..." | tee -a $LOG
+
+  curl -s -o /dev/null -w "%{http_code}" -X PUT $API/repos/$repo/vulnerability-alerts -H "Accept: application/vnd.github+json" -H "Authorization: token $GHPAT" | grep -q "204" && echo "✓ Dependabot alerts enabled" || echo "x Failed alerts" >> $LOG
+
+  curl -s -o /dev/null -w "%{http_code}" -X PATCH $API/repos/$repo -d '{"private_vulnerability_reporting":true}' -H "Content-Type: application/json" -H "Authorization: token $GHPAT" | grep -q "200" && echo "✓ Private vuln reporting" || echo "x Failed vuln report" >> $LOG
+
+  curl -s -o /dev/null -w "%{http_code}" -X PATCH $API/repos/$repo -d '{"dependency_graph_enabled":true}' -H "Content-Type: application/json" -H "Authorization: token $GHPAT" | grep -q "200" && echo "✓ Dependency graph" || echo "x Failed dep graph" >> $LOG
+
+  curl -s -o /dev/null -w "%{http_code}" -X PATCH $API/repos/$repo -d '{"secret_scanning":true,"secret_scanning_push_protection":true}' -H "Content-Type: application/json" -H "Authorization: token $GHPAT" | grep -q "200" && echo "✓ Secret scanning" || echo "x Failed secret scanning" >> $LOG
+
+  curl -s -o /dev/null -w "%{http_code}" -X PUT $API/repos/$repo/automated-security-fixes -H "Accept: application/vnd.github+json" -H "Authorization: token $GHPAT" | grep -q "204" && echo "✓ Dependabot security fixes" || echo "x Failed security fixes" >> $LOG
+
+  echo "$repo - All security features attempted." | tee -a $LOG
+done
+
+echo -e "\nAll repos processed. Review $LOG for per-repo status."
+termux-clipboard-set < $LOG
+echo "✓ Security upgrade complete. Log copied to clipboard."
+EOF
+
+chmod +x upgrade_github_sec.sh
+./upgrade_github_sec.sh
