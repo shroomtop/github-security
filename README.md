@@ -1,1 +1,3 @@
-# github-security
+# GitHub Bulk Security Upgrader
+...
+Developed by Shroomtop420™ (Alex Moberg) — [shroomtop420.com](https://www.shroomtop420.com/)

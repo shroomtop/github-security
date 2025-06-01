@@ -1,0 +1,5 @@
+# Ignore logs and system files
+*.log
+*.swp
+.DS_Store
+github-secure-upgrade.log
